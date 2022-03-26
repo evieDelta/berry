@@ -84,7 +84,7 @@ func (s *site) Run() {
 
 	s.mux = &gemini.Mux{}
 	s.gemini = &gemini.Server{
-		Handler:        gemini.LoggingMiddleware(gemini.TimeoutHandler(s.mux, time.Second*15, "Server Action Timeout")), // chi's .Use is nicer for middlewares smh
+		Handler:        gemini.TimeoutHandler(s.mux, time.Second*15, "Server Action Timeout"), // chi's .Use is nicer for middlewares smh
 		Addr:           s.conf.BaseURL,
 		GetCertificate: s.certs,
 	}
