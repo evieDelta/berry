@@ -12,6 +12,7 @@ import (
 	"github.com/Masterminds/sprig"
 	"github.com/termora/berry/db"
 	"github.com/termora/berry/db/search/typesense"
+	"github.com/termora/berry/feeds"
 	"go.uber.org/zap"
 )
 
@@ -29,12 +30,15 @@ type site struct {
 	certs  func(hostname string) (*tls.Certificate, error)
 
 	templ *template.Template
+
+	feeds *feeds.Feeds
 }
 
 type conf struct {
 	DatabaseURL string `yaml:"database_url"`
 
-	BaseURL string `yaml:"base_url"`
+	BaseURL     string `yaml:"base_url"`
+	FeedBaseURL string `yaml:"feed_base_url"`
 
 	CertificatePath string `yaml:"certificate_path"`
 
@@ -42,8 +46,6 @@ type conf struct {
 	Invite   string `yaml:"invite_url"`
 	Git      string
 	Contact  bool
-	// Optional description shown in embeds, when not linking to a term page
-	Description string
 
 	Typesense struct {
 		URL string
@@ -72,6 +74,12 @@ func (s *site) Run() {
 	}
 	s.db.TermBaseURL = "/term/"
 	s.sugar.Info("Connected to database")
+
+	s.feeds = feeds.New(s.db, "gemini://", s.conf.FeedBaseURL)
+	err = s.feeds.Update()
+	if err != nil {
+		s.sugar.Errorf("Error updating feeds: %v", err)
+	}
 
 	// Typesense requires a bot running to sync terms
 	if s.conf.Typesense.URL != "" && s.conf.Typesense.Key != "" {
@@ -103,6 +111,8 @@ func (s *site) Run() {
 	s.mux.HandleFunc("/favicon.png", s.faviconpng)
 	s.mux.HandleFunc("/favicon.ico", s.faviconpng)
 
+	s.mux.Handle("/feeds/", gemini.StripPrefix("/feeds/", gemini.HandlerFunc(s.contentfeeds)))
+
 	go func() {
 		if err := s.gemini.ListenAndServe(ctx); err != nil {
 			s.sugar.Info("Shutting down server. Error?", err)
@@ -131,6 +141,42 @@ func (s *site) faviconpng(ctx context.Context, w gemini.ResponseWriter, r *gemin
 	_, err := w.Write(faviconpng)
 	if err != nil {
 		s.sugar.Error("error uploading", err)
+	}
+}
+
+func (s *site) contentfeeds(ctx context.Context, w gemini.ResponseWriter, r *gemini.Request) {
+	var data, ctype string
+	var err error
+	switch r.URL.Path {
+	case "feed.rss", "rss.xml":
+		ctype = "application/rss+xml"
+		data, err = s.feeds.RSS()
+	case "feed.atom", "atom.xml":
+		ctype = "application/atom+xml"
+		data, err = s.feeds.Atom()
+	case "feed.json":
+		ctype = "application/feed+json"
+		data, err = s.feeds.JSON()
+	default:
+		ctype = "text/gemini"
+		data = `# Termora
+=> / Homepage
+## Feeds
+follow a feed and get updates to any terms added in your news reader
+=> /feeds/feed.rss RSS Feed
+=> /feeds/feed.atom Atom Feed
+=> /feeds/feed.json JSON feed`
+	}
+
+	if err != nil {
+		s.sugar.Errorf("Error getting/updating Feeds: %v", err)
+		w.WriteHeader(gemini.StatusTemporaryFailure, "something went wrong")
+	}
+
+	w.SetMediaType(ctype)
+	_, err = io.WriteString(w, data)
+	if err != nil {
+		s.sugar.Errorf("Error uploading feed: %v", err)
 	}
 }
 

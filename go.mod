@@ -19,6 +19,7 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/feeds v1.1.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.5.1
 	github.com/jackc/pgconn v1.8.1

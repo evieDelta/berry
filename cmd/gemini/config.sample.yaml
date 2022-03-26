@@ -5,3 +5,5 @@ site_name: Termora
 invite_url: https://termora.org/invite
 git: https://github.com/termora/berry
 contact: true
+
+feed_base_url: termora.org
