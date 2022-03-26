@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	_ "embed"
-	"io"
 	"text/template"
 	"time"
 
@@ -119,75 +117,3 @@ func (s *site) Run() {
 		}
 	}()
 }
-
-func (s *site) robotstxt(ctx context.Context, w gemini.ResponseWriter, r *gemini.Request) {
-	w.SetMediaType("text/plain")
-	_, err := io.WriteString(w, robotstxt)
-	if err != nil {
-		s.sugar.Error("error uploading", err)
-	}
-}
-
-func (s *site) favicontxt(ctx context.Context, w gemini.ResponseWriter, r *gemini.Request) {
-	w.SetMediaType("text/plain")
-	_, err := io.WriteString(w, favicontxt)
-	if err != nil {
-		s.sugar.Error("error uploading", err)
-	}
-}
-
-func (s *site) faviconpng(ctx context.Context, w gemini.ResponseWriter, r *gemini.Request) {
-	w.SetMediaType("image/png")
-	_, err := w.Write(faviconpng)
-	if err != nil {
-		s.sugar.Error("error uploading", err)
-	}
-}
-
-func (s *site) contentfeeds(ctx context.Context, w gemini.ResponseWriter, r *gemini.Request) {
-	var data, ctype string
-	var err error
-	switch r.URL.Path {
-	case "feed.rss", "rss.xml":
-		ctype = "application/rss+xml"
-		data, err = s.feeds.RSS()
-	case "feed.atom", "atom.xml":
-		ctype = "application/atom+xml"
-		data, err = s.feeds.Atom()
-	case "feed.json":
-		ctype = "application/feed+json"
-		data, err = s.feeds.JSON()
-	default:
-		ctype = "text/gemini"
-		data = `# Termora
-=> / Homepage
-## Feeds
-follow a feed and get updates to any terms added in your news reader
-=> /feeds/feed.rss RSS Feed
-=> /feeds/feed.atom Atom Feed
-=> /feeds/feed.json JSON feed`
-	}
-
-	if err != nil {
-		s.sugar.Errorf("Error getting/updating Feeds: %v", err)
-		w.WriteHeader(gemini.StatusTemporaryFailure, "something went wrong")
-	}
-
-	w.SetMediaType(ctype)
-	_, err = io.WriteString(w, data)
-	if err != nil {
-		s.sugar.Errorf("Error uploading feed: %v", err)
-	}
-}
-
-const robotstxt = `User-agent: *
-Disallow: /file
-Disallow: /search
-Disallow: /static`
-
-// yes i seen the drama, please do not bother us with any purity evangelizing
-// we respectfully, do not care - evie
-const favicontxt = "📕" // unicode book
-
-//go:embed static/favicon.png
-var faviconpng []byte
