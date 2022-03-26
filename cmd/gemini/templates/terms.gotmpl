@@ -1,0 +1,24 @@
+{{- define "terms" -}}
+	{{- template "header" . -}}
+
+	{{- if (eq .Tag "untagged") -}}
+## List of untagged terms
+	{{- else -}}
+## List of terms tagged "{{.Tag}}"
+	{{- end -}}
+
+	{{- if .Terms -}}
+		{{- range .Terms }}
+
+### {{.Name}}
+			{{- if .Aliases}}
+Aliases: {{join ", " .Aliases}}
+			{{- end}}
+=> /term/{{.ID}} {{.Name}}
+		{{- else -}}
+No terms found.
+		{{- end -}}
+	{{- end -}}
+
+	{{- template "footer" . -}}
+{{- end -}}

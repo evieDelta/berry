@@ -8,10 +8,12 @@ config.yaml
 config.toml
 cmd/site/static/pages/*.md
 .env
+cmd/gemini/certs
 
 # binaries
 cmd/api/api
 cmd/site/site
+cmd/gemini/gemini
 cmd/bot/bot
 cmd/export/export
 

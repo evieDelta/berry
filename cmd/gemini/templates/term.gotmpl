@@ -1,0 +1,49 @@
+{{- define "term" -}}
+	{{- template "header" . -}}
+
+## {{.Term.Name}}
+	{{- if .Term.Aliases}}
+Aliases: {{.Term.Aliases | join ", " }}
+	{{- end -}}
+	
+	{{- if .Term.ContentWarnings -}}
+### Content Warning
+> {{.Term.ContentWarnings | quoteMultiline -}}
+	{{- range .TermLinks.ContentWarning}}
+=> {{.Dest}} {{.Name}}
+	{{- end -}}
+	{{- end}}
+
+### Description
+> {{.Term.Description | quoteMultiline -}}
+	{{- range .TermLinks.Description}}
+=> {{.Dest}} {{.Name}}
+	{{- end }}
+
+### Source
+> {{.Term.Source | quoteMultiline -}}
+	{{- range .TermLinks.Source}}
+=> {{.Dest}} {{.Name}}
+	{{- end -}}
+
+	{{- if .Term.Note}}
+
+### Note
+> {{.Term.Note | quoteMultiline -}}
+	{{- range .TermLinks.Note}}
+=> {{.Dest}} {{.Name}}
+	{{- end -}}
+	{{- end -}}
+
+	{{- if .Term.Tags}}
+
+### Tags
+> {{.Term.DisplayTags | join ", " | quoteMultiline}}
+	{{- end}}
+
+### Metadata
+ID: {{.Term.ID}}, category: {{.Term.CategoryName}} (ID: {{.Term.Category}})
+Created: {{.Term.Created | timeToDate | title}}
+
+	{{- template "footer" . -}}
+{{- end -}}

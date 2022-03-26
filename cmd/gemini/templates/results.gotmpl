@@ -1,0 +1,22 @@
+{{- define "search-results" -}}
+	{{- template "header" . -}}
+
+	{{- $count := len .Terms -}}
+## {{$count}} Search {{$count | plural "Result" "Results"}}
+> {{.Query | quoteMultiline}}
+
+	{{- range .Terms}}
+### {{.Name}}
+	{{- if .Aliases}}
+Aliases: {{join ", " .Aliases}}
+	{{- end}}
+=> /term/{{.ID}} {{.Name}}
+	{{- $head := (trunc 250 .Headline) -}}
+	{{- if ne (len $head) (len .Headline)}}
+		{{- $head = (join "" $head "..." | quoteMultiline) -}}
+	{{- end -}}
+	
+	{{- end -}}
+
+	{{- template "footer" . -}}
+{{- end -}}

@@ -1,0 +1,6 @@
+{{- define "static" -}}
+	{{- template "header" . -}}
+## {{.Path | title}}
+{{.MD}}
+	{{- template "footer" . -}}
+{{- end -}}

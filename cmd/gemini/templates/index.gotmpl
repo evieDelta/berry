@@ -1,0 +1,11 @@
+{{- define "index" -}}
+	{{- template "header" . -}}
+
+## Tags
+	{{- range .Tags}}
+=> /tag/{{urlEncode .}} {{title .}}
+	{{- end}}
+=> /tag/untagged Untagged terms
+
+	{{- template "footer" . -}}
+{{- end -}}

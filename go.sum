@@ -4,6 +4,8 @@ codeberg.org/eviedelta/detctime v0.0.0-20201201223733-52d0e0a1ba3d h1:S2N7y0DTqL
 codeberg.org/eviedelta/detctime v0.0.0-20201201223733-52d0e0a1ba3d/go.mod h1:Qj2pfTh5jTXHytIv/SO/cNLAFJcTwK9aaACGw7k5XUE=
 emperror.dev/errors v0.8.0 h1:4lycVEx0sdJkwDUfQ9pdu6SR0x7rgympt5f4+ok8jDk=
 emperror.dev/errors v0.8.0/go.mod h1:YcRvLPh626Ubn2xqtoprejnA5nFha+TJ+2vew48kWuE=
+git.sr.ht/~adnano/go-gemini v0.2.2 h1:p2owKzrQ1wTgvPS5CZCPYArQyNUL8ZgYOHHrTjH9sdI=
+git.sr.ht/~adnano/go-gemini v0.2.2/go.mod h1:hQ75Y0i5jSFL+FQ7AzWVAYr5LQsaFC7v3ZviNyj46dY=
 github.com/360EntSecGroup-Skylar/excelize/v2 v2.4.0 h1:X+2CWGf5W1tm2+W7Y/LLrAPLFSNlHATnqDudGoIzaxY=
 github.com/360EntSecGroup-Skylar/excelize/v2 v2.4.0/go.mod h1:p9lGPoVX3HYEbFRfjgrPWaaKsHe/2u4EM9DB/qoctgU=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=

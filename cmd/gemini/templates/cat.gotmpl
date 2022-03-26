@@ -1,0 +1,21 @@
+{{- define "category" -}}
+	{{- template "header" . -}}
+
+## List of {{.Category.Name}} terms
+	
+	{{- range .Terms}}
+### {{.Name}}
+	{{- if .Aliases}}
+Also known as {{join .Aliases " / "}}
+	{{- end}}
+=> /term/{{.ID}} {{.Name}}
+	{{- end -}}
+
+	{{- $submit := "https://docs.google.com/forms/d/e/1FAIpQLSdsa4SmmJomil0cx8o7UHyNkR0tUtKTrkh_oCqAJ6nIHcry0Q/viewform?usp=sf_link" -}}
+	{{- $feedback := "https://docs.google.com/forms/d/e/1FAIpQLScgRC2-fjZAnF3CSb_Mr2rtUPJFnCPXMcCsjxXXTioW_uve_g/viewform?usp=sf_link" -}}
+	{{- "" }}
+=> {{$submit}} Term Submissions
+=> {{$feedback}} Feedback and term edit/removal requests
+
+	{{- template "footer" . -}}
+{{- end -}}

@@ -1,0 +1,13 @@
+{{- define "no-results" -}}
+	{{- template "header" . -}}
+## {{"0 Search Results"}}
+Nothing was found. Try searching for something else
+	{{- if .Query }}
+> {{.Query | quoteMultiline}}
+	{{- else }}
+You did not input a query.
+	{{- end }}
+=> /search Search something else
+
+	{{- template "footer" . -}}
+{{- end -}}

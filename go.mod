@@ -5,6 +5,7 @@ go 1.16
 require (
 	codeberg.org/eviedelta/detctime v0.0.0-20201201223733-52d0e0a1ba3d
 	emperror.dev/errors v0.8.0
+	git.sr.ht/~adnano/go-gemini v0.2.2 // indirect
 	github.com/360EntSecGroup-Skylar/excelize/v2 v2.4.0
 	github.com/BurntSushi/toml v0.4.1
 	github.com/Masterminds/goutils v1.1.1 // indirect
