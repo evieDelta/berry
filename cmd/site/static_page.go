@@ -1,4 +1,4 @@
-package main
+package site
 
 import (
 	"embed"
@@ -36,7 +36,7 @@ func (s *site) staticPage(c echo.Context) (err error) {
 	)
 
 	data := &renderData{
-		Conf: s.conf,
+		Conf: s.Config,
 	}
 
 	pageMu.RLock()

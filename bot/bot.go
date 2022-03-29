@@ -2,6 +2,7 @@
 package bot
 
 import (
+	"context"
 	"sort"
 	"sync"
 
@@ -12,20 +13,19 @@ import (
 	"github.com/diamondburned/arikawa/v3/utils/httputil/httpdriver"
 	"github.com/getsentry/sentry-go"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/mediocregopher/radix/v4"
 	"github.com/starshine-sys/bcr"
 	bcrbot "github.com/starshine-sys/bcr/bot"
+	"github.com/termora/berry/common"
+	"github.com/termora/berry/common/log"
 	"github.com/termora/berry/db"
 	"github.com/termora/berry/helper"
-	"github.com/termora/berry/structs"
-	"go.uber.org/zap"
 )
 
 // Bot is the main bot struct
 type Bot struct {
 	*bcrbot.Bot
-
-	Log    *zap.SugaredLogger
-	Config *structs.BotConfig
+	Config common.Config
 	DB     *db.DB
 
 	Sentry    *sentry.Hub
@@ -37,22 +37,29 @@ type Bot struct {
 	Stats *StatsClient
 
 	Helper *helper.Helper
+
+	redis radix.Client
 }
 
 // New creates a new instance of Bot
 func New(
 	bot *bcrbot.Bot,
-	s *zap.SugaredLogger,
-	config *structs.BotConfig,
+	config common.Config,
 	db *db.DB, hub *sentry.Hub) *Bot {
 	b := &Bot{
 		Bot:       bot,
-		Log:       s,
 		Config:    config,
 		DB:        db,
 		Sentry:    hub,
 		UseSentry: hub != nil,
 		Guilds:    map[discord.GuildID]discord.Guild{},
+	}
+
+	if config.Core.Redis != "" {
+		client, err := (&radix.PoolConfig{}).New(context.Background(), "tcp", config.Core.Redis)
+		if err == nil {
+			b.redis = client
+		}
 	}
 
 	// set the router's prefixer
@@ -66,16 +73,17 @@ func New(
 		state.AddHandler(b.MessageCreate)
 		state.AddHandler(b.InteractionCreate)
 		state.AddHandler(b.GuildCreate)
+		state.AddHandler(b.reminderInteraction) // TODO: remove once message content intent launches
 		state.PreHandler.AddSyncHandler(b.GuildDelete)
 	})
 
 	// setup stats if metrics are enabled
 	b.setupStats()
 
-	if config.Bot.Support.Token != "" {
-		h, err := helper.New(config.Bot.Support.Token, config.Bot.Support.GuildID, db, s)
+	if config.Bot.SupportToken != "" {
+		h, err := helper.New(config.Bot.SupportToken, config.Bot.SupportGuildID, db)
 		if err != nil {
-			s.Errorf("Error creating helper: %v", err)
+			log.Errorf("Error creating helper: %v", err)
 		}
 		b.Helper = h
 	}
@@ -113,13 +121,12 @@ func (bot *Bot) guildCount() int {
 }
 
 func (bot *Bot) setupStats() {
-	if bot.Config.Auth.InfluxDB.URL != "" {
-		bot.Log.Infof("Setting up InfluxDB client")
+	if bot.Config.Bot.InfluxDB.URL != "" {
+		log.Infof("Setting up InfluxDB client")
 
 		bot.Stats = &StatsClient{
-			Client:     influxdb2.NewClient(bot.Config.Auth.InfluxDB.URL, bot.Config.Auth.InfluxDB.Token).WriteAPI(bot.Config.Auth.InfluxDB.Org, bot.Config.Auth.InfluxDB.Bucket),
+			Client:     influxdb2.NewClient(bot.Config.Bot.InfluxDB.URL, bot.Config.Bot.InfluxDB.Token).WriteAPI(bot.Config.Bot.InfluxDB.Org, bot.Config.Bot.InfluxDB.Bucket),
 			guildCount: bot.guildCount,
-			log:        bot.Log,
 		}
 
 		bot.Router.ShardManager.ForEach(func(s shard.Shard) {

@@ -1,7 +1,6 @@
-package main
+package api
 
 import (
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,57 +9,40 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/termora/berry/common"
+	"github.com/termora/berry/common/log"
 	"github.com/termora/berry/db"
 	"github.com/termora/berry/db/search/typesense"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
+	"github.com/urfave/cli/v2"
 )
 
+var Command = &cli.Command{
+	Name:   "api",
+	Usage:  "Run the API",
+	Action: run,
+}
+
 type Server struct {
-	db   *db.DB
-	conf conf
-	log  *zap.SugaredLogger
+	db *db.DB
 }
 
-type conf struct {
-	DatabaseURL  string `yaml:"database_url"`
-	TypesenseURL string `yaml:"typesense_url"`
-	TypesenseKey string `yaml:"typesense_key"`
-	Port         string `yaml:"port"`
-}
-
-func main() {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
-	log := logger.Sugar()
-
+func run(*cli.Context) (err error) {
 	// read config
-	var c conf
-
-	configFile, err := ioutil.ReadFile("config.yaml")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = yaml.Unmarshal(configFile, &c)
-	if err != nil {
-		log.Fatal(err)
-	}
+	c := common.ReadConfig()
 
 	log.Info("Loaded configuration file.")
 
-	s := &Server{conf: c, log: log}
+	s := &Server{}
 
 	// connect to the database
-	s.db, err = db.Init(c.DatabaseURL, log)
+	s.db, err = db.Init(c.Core.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Error connecting to database: %v", err)
 	}
 	log.Info("Connected to database")
 
-	if s.conf.TypesenseURL != "" && s.conf.TypesenseKey != "" {
-		s.db.Searcher, err = typesense.New(s.conf.TypesenseURL, s.conf.TypesenseKey, s.db.Pool, s.log.Debugf)
+	if c.Core.TypesenseURL != "" && c.Core.TypesenseKey != "" {
+		s.db.Searcher, err = typesense.New(c.Core.TypesenseURL, c.Core.TypesenseKey, s.db.Pool)
 		if err != nil {
 			log.Fatalf("Error connecting to Typesense: %v", err)
 		}
@@ -86,13 +68,13 @@ func main() {
 		r.Get("/pronouns", s.pronouns)
 	})
 
-	mx.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+	mx.Get("/robots.txt", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`User-agent: *
 Disallow: /`))
 	})
 
 	// get port
-	port := c.Port
+	port := c.API.Port
 	if port == "" {
 		port = ":1300"
 	}
@@ -119,4 +101,5 @@ Disallow: /`))
 	case err := <-e:
 		log.Errorf("Error serving API: %v", err)
 	}
+	return nil
 }

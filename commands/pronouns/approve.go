@@ -5,12 +5,13 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/termora/berry/common/log"
 	"github.com/termora/berry/db"
 )
 
 func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 	// if this isn't the pronoun channel, return
-	if m.ChannelID != bot.Config.Bot.Support.PronounChannel || !m.ChannelID.IsValid() {
+	if m.ChannelID != bot.Config.Bot.PronounChannel || !m.ChannelID.IsValid() {
 		return
 	}
 
@@ -33,7 +34,7 @@ func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 
 	err := bot.DB.QueryRow(con, "select exists (select * from pronoun_msgs where message_id = $1)", m.MessageID).Scan(&exists)
 	if err != nil {
-		bot.Log.Errorf("Error getting pronoun message: %v", err)
+		log.Errorf("Error getting pronoun message: %v", err)
 		return
 	}
 	if !exists {
@@ -46,8 +47,22 @@ func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 	}
 
 	var isStaff bool
+	for _, u := range bot.Config.Bot.BotOwners {
+		if u == m.Member.User.ID {
+			isStaff = true
+			break
+		}
+	}
+
 	for _, r := range m.Member.RoleIDs {
-		for _, s := range bot.Config.Bot.Permissions.Directors {
+		for _, s := range bot.Config.Bot.Admins {
+			if r == s {
+				isStaff = true
+				break
+			}
+		}
+
+		for _, s := range bot.Config.Bot.Directors {
 			if r == s {
 				isStaff = true
 				break
@@ -72,14 +87,14 @@ func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 
 	err = bot.DB.QueryRow(con, "select subjective, objective, poss_det, poss_pro, reflexive from pronoun_msgs where message_id = $1", m.MessageID).Scan(&p.Subjective, &p.Objective, &p.PossDet, &p.PossPro, &p.Reflexive)
 	if err != nil {
-		bot.Log.Errorf("Error getting pronoun set: %v", err)
+		log.Errorf("Error getting pronoun set: %v", err)
 		return
 	}
 
 	// add the pronouns!
 	_, err = bot.DB.AddPronoun(p)
 	if err != nil {
-		bot.Log.Errorf("Error adding pronoun set: %v", err)
+		log.Errorf("Error adding pronoun set: %v", err)
 		// this is the only one we DM the person who approved it for
 		ch, chErr := s.CreatePrivateChannel(m.Member.User.ID)
 		if chErr != nil {
@@ -95,14 +110,14 @@ func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 
 	_, err = bot.DB.Exec(con, "delete from pronoun_msgs where message_id = $1", m.MessageID)
 	if err != nil {
-		bot.Log.Errorf("Error deleting message from database: %v", err)
+		log.Errorf("Error deleting message from database: %v", err)
 		return
 	}
 
 	// get the message
 	msg, err := s.Message(m.ChannelID, m.MessageID)
 	if err != nil {
-		bot.Log.Errorf("Error getting message: %v", err)
+		log.Errorf("Error getting message: %v", err)
 		return
 	}
 
@@ -123,7 +138,7 @@ func (bot *Bot) reactionAdd(m *gateway.MessageReactionAddEvent) {
 
 	_, err = s.EditEmbeds(msg.ChannelID, msg.ID, e)
 	if err != nil {
-		bot.Log.Errorf("Error editing message: %v", err)
+		log.Errorf("Error editing message: %v", err)
 		return
 	}
 }

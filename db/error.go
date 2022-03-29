@@ -11,6 +11,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
 	"github.com/starshine-sys/bcr"
+	"github.com/termora/berry/common/log"
 )
 
 // Error ...
@@ -29,13 +30,11 @@ func (db *DB) InternalError(ctx bcr.Contexter, e error) error {
 		return db.sentryError(ctx, e)
 	}
 	// log to console
-	db.Log.Error(e)
+	log.Error(e)
 
 	s := "An internal error has occurred. If this issue persists, please contact the bot developer."
-	if db.Config != nil {
-		if db.Config.Bot.Support.Invite != "" {
-			s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v).", db.Config.Bot.Support.Invite)
-		}
+	if db.Config.Bot.SupportInvite != "" {
+		s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v).", db.Config.Bot.SupportInvite)
 	}
 
 	_, err := ctx.Send(
@@ -89,13 +88,13 @@ func (db *DB) CaptureError(ctx bcr.Contexter, e error) *sentry.EventID {
 }
 
 func (db *DB) sentryError(ctx bcr.Contexter, e error) error {
-	db.Log.Error(e)
+	log.Error(e)
 
 	// check if it's a problem on our end, to avoid blowing through Sentry's limits
 	if !IsOurProblem(e) {
 		s := "An internal error has occurred. However, it's unlikely that it's on our end. Please check the input you gave the command again; if you're reasonably sure the error *is* on our end, please contact the bot developer"
-		if db.Config.Bot.Support.Invite != "" {
-			s = fmt.Sprintf("%v in the [support server](<%v>) with the error code above.", s, db.Config.Bot.Support.Invite)
+		if db.Config.Bot.SupportInvite != "" {
+			s = fmt.Sprintf("%v in the [support server](<%v>) with the error code above.", s, db.Config.Bot.SupportInvite)
 		} else {
 			// hacky as shit but it works :blobsilly:
 			s += "."
@@ -111,10 +110,8 @@ func (db *DB) sentryError(ctx bcr.Contexter, e error) error {
 	id := db.CaptureError(ctx, e)
 
 	s := "An internal error has occurred. If this issue persists, please contact the bot developer with the error code above."
-	if db.Config != nil {
-		if db.Config.Bot.Support.Invite != "" {
-			s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v) with the error code above.", db.Config.Bot.Support.Invite)
-		}
+	if db.Config.Bot.SupportInvite != "" {
+		s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v) with the error code above.", db.Config.Bot.SupportInvite)
 	}
 
 	_, err := ctx.Send(

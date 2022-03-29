@@ -2,9 +2,7 @@ package static
 
 import (
 	"fmt"
-	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
@@ -14,20 +12,9 @@ import (
 	"github.com/dustin/go-humanize/english"
 	"github.com/georgysavva/scany/pgxscan"
 	"github.com/starshine-sys/bcr"
+	"github.com/termora/berry/common"
 	"github.com/termora/berry/db"
 )
-
-var gitVer string
-
-func init() {
-	git := exec.Command("git", "rev-parse", "--short", "HEAD")
-	// ignoring errors *should* be fine? if there's no output we just fall back to "unknown"
-	b, _ := git.Output()
-	gitVer = strings.TrimSpace(string(b))
-	if gitVer == "" {
-		gitVer = "[unknown]"
-	}
-}
 
 type category struct {
 	ID    int
@@ -47,7 +34,7 @@ func (bot *Bot) about(ctx bcr.Contexter) (err error) {
 
 	// this will return 0ms in the first minute after the bot is restarted
 	// can't do much about that though
-	heartbeat := ctx.Session().Gateway().EchoBeat().Sub(ctx.Session().Gateway().SentBeat())
+	heartbeat := ctx.Session().Gateway().EchoBeat().Sub(ctx.Session().Gateway().SentBeat()).Round(time.Millisecond)
 
 	stats := runtime.MemStats{}
 	runtime.ReadMemStats(&stats)
@@ -71,7 +58,7 @@ func (bot *Bot) about(ctx bcr.Contexter) (err error) {
 			},
 		},
 		Footer: &discord.EmbedFooter{
-			Text: "Version " + gitVer,
+			Text: "Version " + common.Version,
 		},
 		Timestamp: discord.NowTimestamp(),
 	}
@@ -152,7 +139,7 @@ func (bot *Bot) about(ctx bcr.Contexter) (err error) {
 			Inline: true,
 		}, discord.EmbedField{
 			Name:   "Source code",
-			Value:  fmt.Sprintf("[GitHub](%v) / [GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html) license", bot.Config.Bot.Git),
+			Value:  fmt.Sprintf("[GitHub](%v) / [GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html) license", bot.Config.Core.Git),
 			Inline: true,
 		})
 	}

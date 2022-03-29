@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -16,10 +16,8 @@ import (
 	"github.com/diamondburned/arikawa/v3/state/store"
 	"github.com/diamondburned/arikawa/v3/utils/ws"
 	"github.com/getsentry/sentry-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/urfave/cli/v2"
 
-	"github.com/spf13/pflag"
 	bcrbot "github.com/starshine-sys/bcr/bot"
 	"github.com/termora/berry/bot"
 	"github.com/termora/berry/commands/admin"
@@ -27,107 +25,103 @@ import (
 	"github.com/termora/berry/commands/search"
 	"github.com/termora/berry/commands/server"
 	"github.com/termora/berry/commands/static"
+	"github.com/termora/berry/common"
+	"github.com/termora/berry/common/log"
 	"github.com/termora/berry/db"
 	dbsearch "github.com/termora/berry/db/search"
 	"github.com/termora/berry/db/search/typesense"
 )
 
-var debug, disableEventLoop, moreDebug bool
-
-func init() {
-	pflag.BoolVarP(&debug, "debug", "d", true, "Debug logging")
-	pflag.BoolVarP(&disableEventLoop, "noloop", "N", false, "Disable event loop that will kill bot after 5 minutes of no events")
-	pflag.BoolVarP(&moreDebug, "more-debug", "", false, "Even MORE debug logs (very spammy)")
-	pflag.Parse()
+var Command = &cli.Command{
+	Name:   "bot",
+	Usage:  "Run the bot",
+	Action: run,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:    "debug",
+			Aliases: []string{"d"},
+			Usage:   "Debug logging",
+			Value:   true,
+		},
+		&cli.BoolFlag{
+			Name:    "noloop",
+			Aliases: []string{"N"},
+			Value:   false,
+			Usage:   "Disable event loop that will kill bot after 5 minutes of no events",
+		},
+		&cli.BoolFlag{
+			Name:  "more-debug",
+			Value: false,
+			Usage: "Even MORE debug logs (very spammy)",
+		},
+	},
 }
 
-func main() {
+func run(ctx *cli.Context) error {
 	rand.Seed(time.Now().UnixNano())
 
-	// set up a logger
-	zcfg := zap.NewProductionConfig()
-	zcfg.Encoding = "console"
-	zcfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	zcfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	zcfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	zcfg.EncoderConfig.EncodeDuration = zapcore.StringDurationEncoder
+	c := common.ReadConfig()
 
-	if debug {
-		zcfg.Level.SetLevel(zapcore.DebugLevel)
-	} else {
-		zcfg.Level.SetLevel(zapcore.InfoLevel)
-	}
-
-	logger, err := zcfg.Build(zap.AddStacktrace(zapcore.ErrorLevel))
-	if err != nil {
-		panic(err)
-	}
-
-	zap.RedirectStdLog(logger)
-	sugar := logger.Sugar()
-
-	c := getConfig(sugar)
-
-	if debug {
-		ws.WSDebug = sugar.Debug
-		db.Debug = sugar.Debugf
+	if ctx.Bool("debug") {
+		ws.WSDebug = log.Debug
+		db.Debug = log.Debugf
 	}
 
 	// create a Sentry config
-	if c.UseSentry {
-		err = sentry.Init(sentry.ClientOptions{
-			Dsn: c.Auth.SentryURL,
+	if c.Core.UseSentry {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn: c.Core.SentryURL,
 		})
 		if err != nil {
-			sugar.Fatalf("sentry.Init: %s", err)
+			log.Fatalf("sentry.Init: %s", err)
 		}
-		sugar.Infof("Initialised Sentry")
+		log.Infof("Initialised Sentry")
 		// defer this to flush buffered events
 		defer sentry.Flush(2 * time.Second)
 	}
 	hub := sentry.CurrentHub()
-	if !c.UseSentry {
+	if !c.Core.UseSentry {
 		hub = nil
 	}
 
 	// connect to the database
-	d, err := db.Init(c.Auth.DatabaseURL, sugar)
+	d, err := db.Init(c.Core.DatabaseURL)
 	if err != nil {
-		sugar.Fatalf("Error connecting to database: %v", err)
+		log.Fatalf("Error connecting to database: %v", err)
 	}
 	d.SetSentry(hub)
-	d.Config = &c
-	d.TermBaseURL = c.TermBaseURL()
+	d.Config = c
+	d.TermBaseURL = c.Bot.TermBaseURL()
 	defer func() {
 		d.Pool.Close()
-		sugar.Infof("Closed database connection.")
+		log.Infof("Closed database connection.")
 	}()
 
-	if c.Auth.TypesenseURL != "" && c.Auth.TypesenseKey != "" {
-		d.Searcher, err = typesense.New(c.Auth.TypesenseURL, c.Auth.TypesenseKey, d.Pool, db.Debug)
+	if c.Core.TypesenseURL != "" && c.Core.TypesenseKey != "" {
+		d.Searcher, err = typesense.New(c.Core.TypesenseURL, c.Core.TypesenseKey, d.Pool)
 		if err != nil {
-			sugar.Fatalf("Error connecting to Typesense: %v", err)
+			log.Fatalf("Error connecting to Typesense: %v", err)
 		}
 	}
 
 	// sync terms
 	terms, err := d.GetTerms(dbsearch.FlagSearchHidden)
 	if err != nil {
-		sugar.Fatalf("Couldn't fetch all terms: %v", err)
+		log.Fatalf("Couldn't fetch all terms: %v", err)
 	}
 
 	err = d.SyncTerms(terms)
 	if err != nil {
-		sugar.Fatalf("Couldn't synchronize terms: %v", err)
+		log.Fatalf("Couldn't synchronize terms: %v", err)
 	}
-	sugar.Info("Synchronized terms with search instance!")
+	log.Info("Synchronized terms with search instance!")
 
-	sugar.Info("Connected to database.")
+	log.Info("Connected to database.")
 
 	// create a new state
-	b, err := bcrbot.New(c.Auth.Token)
+	b, err := bcrbot.New(c.Bot.Token)
 	if err != nil {
-		sugar.Fatalf("Error creating bot: %v", err)
+		log.Fatalf("Error creating bot: %v", err)
 	}
 	b.Router.ShardManager.ForEach(func(s shard.Shard) {
 		state := s.(*state.State)
@@ -135,7 +129,7 @@ func main() {
 		state.Cabinet.MessageStore = store.Noop
 
 		state.AddHandler(func(err error) {
-			sugar.Errorf("Gateway error: %v", err)
+			log.Errorf("Gateway error: %v", err)
 		})
 	})
 
@@ -147,7 +141,7 @@ func main() {
 
 	// create the bot instance
 	bot := bot.New(
-		b, sugar, &c, d, hub)
+		b, c, d, hub)
 	// add search commands
 	bot.Add(search.Init)
 	// add pronoun commands
@@ -166,54 +160,56 @@ func main() {
 
 	// open a connection to Discord
 	if err = bot.Start(context.Background()); err != nil {
-		sugar.Fatal("Failed to connect:", err)
+		log.Fatal("Failed to connect:", err)
 	}
 
 	// Defer this to make sure that things are always cleanly shutdown even in the event of a crash
 	defer func() {
 		bot.Router.ShardManager.Close()
-		sugar.Infof("Disconnected from Discord.")
+		log.Infof("Disconnected from Discord.")
 	}()
 
-	sugar.Info("Connected to Discord. Press Ctrl-C or send an interrupt signal to stop.")
-	sugar.Infof("User: %v (%v)", botUser.Tag(), botUser.ID)
+	log.Info("Connected to Discord. Press Ctrl-C or send an interrupt signal to stop.")
+	log.Infof("User: %v (%v)", botUser.Tag(), botUser.ID)
 
-	if c.Bot.SlashCommands.Enabled {
-		if len(c.Bot.SlashCommands.Guilds) > 0 {
-			sugar.Infof("Syncing commands in %v...", c.Bot.SlashCommands.Guilds)
+	if c.Bot.SlashEnabled {
+		if len(c.Bot.SlashGuilds) > 0 {
+			log.Infof("Syncing commands in %v...", c.Bot.SlashGuilds)
 		} else {
-			sugar.Info("Syncing slash commands...")
+			log.Info("Syncing slash commands...")
 		}
-		err = bot.Router.SyncCommands(c.Bot.SlashCommands.Guilds...)
+		err = bot.Router.SyncCommands(c.Bot.SlashGuilds...)
 		if err != nil {
-			sugar.Errorf("Couldn't sync commands: %v", err)
+			log.Errorf("Couldn't sync commands: %v", err)
 		} else {
-			sugar.Info("Synced commands!")
+			log.Info("Synced commands!")
 		}
+	} else {
+		log.Info("Not syncing slash commands.")
 	}
 
-	go timer(sugar)
+	go timer()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	cctx, stop := signal.NotifyContext(ctx.Context, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
 	exitCh := make(chan struct{})
-	if !disableEventLoop {
+	if !ctx.Bool("noloop") {
 		eventCh := make(chan interface{}, 100)
 
-		go eventThing(sugar, eventCh, exitCh)
+		go eventThing(ctx, eventCh, exitCh)
 
 		bot.Router.AddHandler(eventCh)
 	}
 
 	shutdownFromNoEvents := false
 	select {
-	case <-ctx.Done():
+	case <-cctx.Done():
 	case <-exitCh:
 		shutdownFromNoEvents = true
 	}
 
-	sugar.Infof("Interrupt signal received. Shutting down...")
+	log.Infof("Interrupt signal received. Shutting down...")
 
 	if c.Bot.StartStopLog.ID.IsValid() {
 		wh := webhook.New(c.Bot.StartStopLog.ID, c.Bot.StartStopLog.Token)
@@ -227,9 +223,11 @@ func main() {
 			Content:   fmt.Sprintf("Shutting down at <t:%v:D> <t:%v:T>\nShutting down due to no events? %v", s, s, shutdownFromNoEvents),
 		})
 	}
+
+	return nil
 }
 
-func timer(sugar *zap.SugaredLogger) {
+func timer() {
 	t := time.Now().UTC()
 	ch := time.Tick(10 * time.Minute)
 
@@ -239,7 +237,7 @@ func timer(sugar *zap.SugaredLogger) {
 	for {
 		select {
 		case <-ch:
-			sugar.Debugf("Tick received, %s since last tick.", time.Since(t))
+			log.Debugf("Tick received, %s since last tick.", time.Since(t))
 			t = time.Now().UTC()
 		case <-ctx.Done():
 			return
@@ -247,8 +245,8 @@ func timer(sugar *zap.SugaredLogger) {
 	}
 }
 
-func eventThing(s *zap.SugaredLogger, ch <-chan interface{}, out chan<- struct{}) {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+func eventThing(ctx *cli.Context, ch <-chan interface{}, out chan<- struct{}) {
+	cctx, stop := signal.NotifyContext(ctx.Context, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
 	t := time.AfterFunc(5*time.Minute, func() {
@@ -258,14 +256,14 @@ func eventThing(s *zap.SugaredLogger, ch <-chan interface{}, out chan<- struct{}
 	for {
 		select {
 		case ev := <-ch:
-			if moreDebug {
-				s.Debugf("Received event %s", reflect.ValueOf(ev).Elem().Type().Name())
+			if ctx.Bool("more-debug") {
+				log.Debugf("Received event %s", reflect.ValueOf(ev).Elem().Type().Name())
 			}
 			t.Stop()
 			t = time.AfterFunc(5*time.Minute, func() {
 				out <- struct{}{}
 			})
-		case <-ctx.Done():
+		case <-cctx.Done():
 			// break if we're shutting down
 			break
 		}

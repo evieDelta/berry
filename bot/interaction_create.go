@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/getsentry/sentry-go"
 	"github.com/starshine-sys/bcr"
+	"github.com/termora/berry/common/log"
 )
 
 // InteractionCreate is called when an interaction create event is received.
@@ -20,8 +21,8 @@ func (bot *Bot) InteractionCreate(ic *gateway.InteractionCreateEvent) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			bot.Log.Errorf("Caught panic in channel ID %v (guild %v): %v", ic.ChannelID, ic.GuildID, r)
-			bot.Log.Infof("Panicking command: %v", ic.Data.(*discord.CommandInteraction).Name)
+			log.Errorf("Caught panic in channel ID %v (guild %v): %v", ic.ChannelID, ic.GuildID, r)
+			log.Infof("Panicking command: %v", ic.Data.(*discord.CommandInteraction).Name)
 
 			// if something causes a panic, it's our problem, because *it shouldn't panic*
 			// so skip checking the error and just immediately report it
@@ -35,10 +36,8 @@ func (bot *Bot) InteractionCreate(ic *gateway.InteractionCreateEvent) {
 			}
 
 			s := "An internal error has occurred. If this issue persists, please contact the bot developer with the error code above."
-			if bot.Config != nil {
-				if bot.Config.Bot.Support.Invite != "" {
-					s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v) with the error code above.", bot.Config.Bot.Support.Invite)
-				}
+			if bot.Config.Bot.SupportInvite != "" {
+				s = fmt.Sprintf("An internal error has occurred. If this issue persists, please contact the bot developer in the [support server](%v) with the error code above.", bot.Config.Bot.SupportInvite)
 			}
 
 			st, _ := bot.Router.StateFromGuildID(0)
@@ -65,13 +64,13 @@ func (bot *Bot) InteractionCreate(ic *gateway.InteractionCreateEvent) {
 
 	ctx, err := bot.Router.NewSlashContext(ic)
 	if err != nil {
-		bot.Log.Errorf("Couldn't create slash context: %v", err)
+		log.Errorf("Couldn't create slash context: %v", err)
 		return
 	}
 
 	err = bot.Router.ExecuteSlash(ctx)
 	if err != nil {
-		bot.Log.Errorf("Couldn't execute slash command: %v", err)
+		log.Errorf("Couldn't execute slash command: %v", err)
 	}
 
 	bot.Stats.IncCommand()
